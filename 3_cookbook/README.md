@@ -88,7 +88,6 @@ necesitamos:
 graphene necesita saber el tipo de los objetos para crear el grafo
 este sera el root type a partir del cual todo acceso inicia(es la query class)
  para cada modelo hay que crear su tipo subclaseandolo como `DjangoObjectType`
-**esto es diferente del primer proyecto**
 
 crear un archivo `cookbook/ingredients/schema.py`:
 ```python
@@ -176,3 +175,65 @@ query {
   }
 }
 ```
+por el momento el modelo solo nos permite manejar una lista de usuarios
+si queremos acceder a uno solo habra que editarlo
+
+editamos `el schema.py`:
+```python
+import graphene
+from graphene_django.types import DjangoObjectType
+from ingredients.models import Category, Ingredient
+
+class CategoryType(DjangoObjectType):
+	class Meta:
+		model=Category
+class IngredientType(DjangoObjectType):
+	class Meta:
+		model=Ingredient
+class Query(object):
+	all_categories=graphene.List(CategoryType)
+	all_ingredients=graphene.List(IngredientType)
+	category=graphene.Field(CategoryType,id=graphene.Int(),name=graphene.String())
+	ingredient=graphene.Field(IngredientType,id=graphene.Int(),name=graphene.String())
+
+	def resolve_all_categories(self,info,**kwargs):
+		return Category.objects.all()
+	# We can easily optimize query count in the resolve method
+	def resolve_all_ingredients(self, info, **kwargs):
+		return Ingredient.objects.select_related('category').all()
+
+	def resolve_category(self,info,**kwargs):
+		id=kwargs.get('id')
+		name=kwargs.get('name')
+		if id is not None:
+			return Category.objects.get(pk=id)
+		if name is not None:
+			return Category.objects.get(name=name)
+		return None
+
+	def resolve_ingredient(self,info,**kwargs):
+		id=kwargs.get('id')
+		name=kwargs.get('name')
+		if id is not None:
+			return Ingredient.objects.get(pk=id)
+		if name is not None:
+			return Ingredient.objects.get(name=name)
+		return None
+```
+y eso ya nos permite hacer multiples peticiones individuales:
+```js
+query {
+  cat1:category(id: 1) {
+    name
+  }
+  anotherCategory: category(name: "Dairy") {
+    ingredients {
+      id
+      name
+    }
+  }
+}
+```
+
+
+
