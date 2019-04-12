@@ -269,5 +269,81 @@ query {
 }
 ```
 
+se pueden usar los filtros sin tener que usar relay
+editamos su schema.py:
+```python
+from ingredients.models import Category, Ingredient
+from graphene import Node
+from graphene_django.filter import DjangoFilterConnectionField
+from graphene_django.types import DjangoObjectType
+
+
+# Graphene will automatically map the Category model's fields onto the CategoryNode.
+# This is configured in the CategoryNode's Meta class (as you can see below)
+class CategoryNode(DjangoObjectType):
+
+  class Meta:
+    model = Category
+    interfaces = (Node, )
+    filter_fields = ['name', 'ingredients']
+
+
+class IngredientNode(DjangoObjectType):
+
+  class Meta:
+    model = Ingredient
+    # Allow for some more advanced filtering here
+    interfaces = (Node, )
+    filter_fields = {
+        'name': ['exact', 'icontains', 'istartswith'],
+        'notes': ['exact', 'icontains'],
+        'category': ['exact'],
+        'category__name': ['exact'],
+    }
+
+
+class Query(object):
+  category = Node.Field(CategoryNode)
+  all_categories = DjangoFilterConnectionField(CategoryNode)
+
+  ingredient = Node.Field(IngredientNode)
+  all_ingredients = DjangoFilterConnectionField(IngredientNode)
+```
+y podemos hacer varias querys:
+```
+
+{
+  allCategories(name: "Dairy") {
+    edges {
+      node {
+        id
+        name
+        ingredients {
+          edges {
+            node {
+              id
+              name
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+{
+  allIngredients(notes_Icontains:"comes"){
+    edges{node{
+      id
+      name
+      notes
+    }}
+  }
+}
+
+```
+las busquedas se pueden hacer con los aprametros indicados en el filtro ej:name_Icontains
+no se si se puedan usar filtros sin nodos, creoq ue no pero al parecer es ams facil por la creacion automatica de busquedas, falta revisar las mutations por que no vienen en la documentacion
+
 
 
