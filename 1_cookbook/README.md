@@ -1,3 +1,5 @@
+## Querys
+crear proyecto
 ```
  virtualenv venv --python=python3.5
  pip install django graphene-django

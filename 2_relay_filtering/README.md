@@ -1,3 +1,5 @@
+## Filtrado de campos y Relay
+Iniciar el proyecto
 ```
  virtualenv venv --python=python3.5
  pip install django graphene-django
@@ -7,7 +9,8 @@
  django-admin startapp ingedients
  python manage.py migrate
 ```
-editamos el modelo `cookbook/ingedients/models.py`:
+
+Editamos el modelo `cookbook/ingedients/models.py`:
 ```python
 from django.db import models
 
@@ -26,7 +29,7 @@ class Ingredient(models.Model):
     return self.name
 ```
 
-agregar al `settings.py`:
+Agregar al `settings.py`:
 ```python
 INSTALLED_APPS = [
     ...
@@ -35,12 +38,13 @@ INSTALLED_APPS = [
 ]
 ```
 
-siempre despues de modificar los modelos remigrar:
+Siempre despues de modificar los modelos re-migrar:
 ```
 python manage.py makemigrations
 python manage.py migrate
 ```
-creamos un archivo `cookbook/ingredients.json`:
+
+Creamos un archivo `cookbook/ingredients.json`:
 ```json
 [{"model": "ingredients.category", "pk": 1,
  "fields": {"name": "Dairy"}},
@@ -73,7 +77,7 @@ y llenar la base de datos :
 python manage.py loaddata ingredients
 ```
 
-crear superusuario y luego agregar al `ingredients/admin.py`:
+Crear superusuario y luego agregar al `ingredients/admin.py`:
 ```python
 from django.contrib import admin
 from ingredients.models import Category, Ingredient
@@ -81,18 +85,18 @@ from ingredients.models import Category, Ingredient
 admin.site.register(Category)
 admin.site.register(Ingredient)
 ```
-necesitamos:
+Necesitamos:
 + schema con los typos object definidos
 + una vista que tome las querys y responda
 
-graphene necesita saber el tipo de los objetos para crear el grafo
-este sera el root type a partir del cual todo acceso inicia(es la query class)
- para cada modelo hay que crear su tipo subclaseandolo como `DjangoObjectType`
+graphene necesita saber el tipo de los objetos para crear el grafo. 
+Este sera el root type a partir del cual todo acceso inicia(es la query class)
+para cada modelo hay que crear su tipo subclaseandolo como `DjangoObjectType`
 
 doc:
-la clase Query es un mixin, inheriting de object, estoe s por que creamos una clase query a nivel proyecto que convina todos nuestros mixines a nivel app(creoq ue es por que es una unica query que junta todo)
+la clase Query es un mixin, inheriting de object, esto es por que creamos una clase query a nivel proyecto que combina todos nuestros mixines a nivel app(creo que es por que es una unica query que junta todo)
 
-creamos un schema en `cookbook/schema.py` que maneja las subquerys como el urls:
+Creamos un schema en `cookbook/schema.py` que maneja las subquerys como el urls:
 
 ```python
 import graphene
@@ -106,7 +110,7 @@ class Query(ingredients.schema.Query, graphene.ObjectType):
 schema=graphene.Schema(query=Query)
 ```
 
-hay que agregar `al settings.py`:
+Hay que agregar `al settings.py`:
 ```python
 INSTALLED_APPS = [
     ...
@@ -118,7 +122,7 @@ GRAPHENE = {
 }
 
 ```
-### vistas
+### Vistas
 GraphQLView administra las vistas, no como en REST
  agregar al `cookbook/urls.py`:
  ```python
@@ -137,7 +141,7 @@ urlpatterns = [
 
 
 **esto es diferente del primer proyecto**
-Aqui usaremos relay, tengo mis dudas de si usarlo ya que no lo pinso usar pero internamente nos administra facilmente las rutas...entonces si lo puedo usar en frontend directamente con react si no hay problemas del estandar relay lo uso
+Aqui usaremos relay, tengo mis dudas de si usarlo ya que no lo pienso usar pero internamente nos administra facilmente las rutas...entonces si lo puedo usar en frontend directamente con react si no hay problemas del estandar relay lo uso
 si no mal entiendo ya provee muchas funcionalidades como mutations y busqueda incluida
 
 crear un archivo `cookbook/ingredients/schema.py`:
@@ -299,5 +303,5 @@ y podemos hacer varias querys:
 }
 
 ```
-las busquedas se pueden hacer con los aprametros indicados en el filtro ej:name_Icontains
-no se si se puedan usar filtros sin nodos, creoq ue no pero al parecer es ams facil por la creacion automatica de busquedas, falta revisar las mutations por que no vienen en la documentacion
+las busquedas se pueden hacer con los parametros indicados en el filtro ej:name_Icontains
+no se si se puedan usar filtros sin nodos, creo que no pero al parecer es mas facil por la creacion automatica de busquedas, falta revisar las mutations por que no vienen en la documentacion

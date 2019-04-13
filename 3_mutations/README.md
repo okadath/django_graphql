@@ -1,11 +1,12 @@
-
-aqui creamos las mutaciones solo con el modelo Node
-no se si ya vengan las CRUDS or default con relay
+## Mutations
+Aqui creamos las mutaciones solo con el modelo Node
+no se si ya vengan las CRUDS por default con relay
 el graphql usa el ORM de django para la modifiacion de los datos
 
-no previene por default los valores duplicados(como django)
+No previene por default los valores duplicados(como Django)
 eso se debe de prevenir antes
-agregamos al models.pyel valor unique y al aprecer se debe hacer un filtrado para esto(aun no lo hago):
+
+Agregamos al `models.py` el valor unique y al parecer se debe hacer un filtrado para esto(aun no lo hago):
 ```python
 class Category(models.Model):
   name=models.CharField(max_length=100,unique=True)
@@ -89,7 +90,7 @@ class Mutation(graphene.ObjectType):
 ```
 
 
-en este iniciamos con el proyecto 2 y lo modificamos par poder tener mutations:
+En este iniciamos con el proyecto 2 y lo modificamos para poder tener mutations:
 
 ```
 {

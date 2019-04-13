@@ -1,14 +1,17 @@
+### Tuto oficial
+Instalar librerias
 ```
  pip install django-filter
  pip install django-graphql-jwt
 ```
-
+Configurar
 ```
 python manage.py startapp links
  python manage.py makemigrations
  python manage.py migrate
  ``` 
-en  python manage.py shell:
+
+En  `python manage.py shell`:
 ```python
 >>> from links.models import Link
 >>> Link.objects.create(url='https://www.howtographql.com/', description='The Fullstack Tutorial for GraphQL')
@@ -17,7 +20,7 @@ en  python manage.py shell:
 <Link: Link object (2)>
 >>> 
 ```
- en link/schema.py:
+En `link/schema.py` creamos los tipos y la query:
 ```python
 import graphene
 from graphene_django import DjangoObjectType
@@ -33,7 +36,7 @@ class Query(graphene.ObjectType):
     def resolve_links(self, info, **kwargs):
         return Link.objects.all()
 ```
-en hackernews/hackernews/schema.py:
+En `hackernews/hackernews/schema.py`creamos al query principal:
 
 ```python
 import graphene
@@ -46,7 +49,7 @@ schema = graphene.Schema(query=Query)
 
 ```
 
-y crear en hackernews/hackernews/urls.py
+y crear en `hackernews/hackernews/urls.py` las urls:
 ```python
 from django.contrib import admin
 from django.urls import path
@@ -70,7 +73,7 @@ query {
 ```
 
 
-luego creamos en el schema las mutaciones:
+luego creamos en el `link/schema.py` las mutaciones:
 ```python
 class CreateLink(graphene.Mutation):
     id = graphene.Int()
@@ -98,7 +101,7 @@ class CreateLink(graphene.Mutation):
 class Mutation(graphene.ObjectType):
     create_link = CreateLink.Field()
 ```
-y en el schema de la app principal:
+y en el `hackernews/hackernews/schema.py`:
 ```python
 import graphene
 import links.schema
@@ -126,9 +129,8 @@ mutation{
 ```
 
 
-
 ## Auth
-creamos una carpeta users y ahi un schema.py usando el modelo de usuarios de django:
+Creamos una carpeta `users` y ahi un `schema.py` usando el modelo de usuarios de django:
 ```python
 from django.contrib.auth import get_user_model
 import graphene
@@ -157,7 +159,7 @@ class Mutation(graphene.ObjectType):
 ```
 
 
-en la carpeta hackernews/hackernews.py:
+en la carpeta `hackernews/hackernews/schema.py`lo agregamos a la query principal:
 ```python
 import graphene
 import links.schema
@@ -191,7 +193,7 @@ mutation {
 }
 ````
 
-para ahcer querys de los usuarios agregar al users/schema.py:
+para hacer querys de los usuarios agregar al `users/schema.py`:
 ```python
 class Query(graphene.ObjectType):
     users = graphene.List(UserType)
@@ -203,9 +205,176 @@ y agregar al schema principal:
 ```python
 class Query(users.schema.Query, links.schema.Query, graphene.ObjectType):
     pass
-    ```
+```
 
 y ya podemos hacer querys listando usuarios:
+
+```
+{
+users{
+  id
+  password
+  username
+  email
+}
+}
+```
+
+## jwt
+
+usaremos insomnia por que gaphiql no permite manejar encabezados http para jwt
+
+agregamos al settings:
+```python
+
+GRAPHENE = {
+    'SCHEMA': 'hackernews.schema.schema',
+    'MIDDLEWARE': [
+        'graphql_jwt.middleware.JSONWebTokenMiddleware',
+    ],
+}
+
+AUTHENTICATION_BACKENDS = [
+    'graphql_jwt.backends.JSONWebTokenBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+```
+
+modificar el hackernews/hackernews/schema.py:
+```python
+import graphene
+import graphql_jwt
+import links.schema
+import users.schema
+
+class Query(users.schema.Query, links.schema.Query, graphene.ObjectType):
+    pass
+class Mutation(users.schema.Mutation, links.schema.Mutation, graphene.ObjectType,):
+  token_auth = graphql_jwt.ObtainJSONWebToken.Field()
+  verify_token = graphql_jwt.Verify.Field()
+  refresh_token = graphql_jwt.Refresh.Field()
+
+schema = graphene.Schema(query=Query, mutation=Mutation)
+```
+
+con esto ya los puede manejar:
+
+```
+mutation{
+  tokenAuth(username:"nuevo" password:"Qwerty35$"){
+    token
+  }
+}
+```
+```
+mutation{
+verifyToken(token:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJvcmlnSWF0IjoxNTU1MTIxOTM3LCJ1c2VybmFtZSI6Im51ZXZvIiwiZXhwIjoxNTU1MTIyMjM3fQ.bbOlodIcpuSFJ8v8JTE7kL0sQVaQSQhcCwKEDIj1mM4"){
+  payload
+}
+}
+```
+el tuto nos dice que se debe de refrescar:
+```
+RefreshToken to obtain a new token within the renewed expiration time for non-expired tokens,
+ if they are enabled to expire. Using it is outside the scope of this tutorial.
+```
+para probar si funciona usaremos una query que me devuelva mi informacion:
+
+en `users/schema.py` modificamos la query:
+```python
+class Query(graphene.AbstractType):
+    me = graphene.Field(UserType)
+    users = graphene.List(UserType)
+
+    def resolve_users(self, info):
+        return get_user_model().objects.all()
+
+    def resolve_me(self, info):
+        user = info.context.user
+        if user.is_anonymous:
+            raise Exception('Not logged in!')
+
+        return user
+```
+y para verificar abrimos el cliente de insomnia y ejecutamos las siguientes querys:
+```
+mutation{
+  tokenAuth(
+    username:"nuevo",
+    password:"Qwerty35$"
+  ){
+    token
+  }
+}
+```
+
+y eso nos devuelve:
+```
+{
+  "data": {
+    "tokenAuth": {
+      "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6Im51ZXZvIiwiZXhwIjoxNTU1MTIyOTA4LCJvcmlnSWF0IjoxNTU1MTIyNjA4fQ.a3TVmW-C0xZ2Nv8HPWqvPn1Wg7G31CHctXYRsKNPewU"
+    }
+  }
+}
+```
+luego en insomnia en Header agregamos los valores
+
+"Authorization" y "JWT #token"
+y hacemos la query que solo se resuelve si estamos logeados:
+```
+query{
+  me{
+    id
+    username
+  }
+}
+```
+ esta nos devuelve nuestros datos
+```
+{
+  "data": {
+    "me": {
+      "id": "1",
+      "username": "nuevo"
+    }
+  }
+}
+```
+si eliminamos ese header nos manda error:
+```
+{
+  "errors": [
+    {
+      "path": [
+        "me"
+      ],
+      "message": "Not logged in!",
+      "locations": [
+        {
+          "line": 2,
+          "column": 3
+        }
+      ]
+    }
+  ],
+  "data": {
+    "me": null
+  }
+}
+```
+
+
+
+
+
+
+
+
+
+
+
 
 
 
