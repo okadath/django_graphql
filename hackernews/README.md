@@ -1,4 +1,4 @@
-### Tuto oficial
+### Tuto 
 Instalar librerias
 ```
  pip install django-filter
@@ -220,7 +220,7 @@ users{
 }
 ```
 
-## jwt
+## JWT
 
 usaremos insomnia por que gaphiql no permite manejar encabezados http para jwt
 
@@ -440,7 +440,7 @@ la cual nos devuelve:
   }
 }
 ```
-## votos
+## Votos
 
 agregamos al `links.models.py`:
 
@@ -600,6 +600,60 @@ links{
 }
 }
 ```
+## Errores
+
+poemos manejar las excepciones normalmente o con su propio metodo de la libreria:
+```python
+from graphql import GraphQLError
+		...
+class CreateVote(graphene.Mutation):
+		...
+    def mutate(self,info,link_id):
+        user=info.context.user
+        if user.is_anonymous:
+            raise GraphQLError("debes estar logeado para votar")
+```
+
+## Filtrado
+
+usamos los filtros de Django(no los conocia :O)
+Aqui es muy importante **El paso de parametros!!**
+```python
+from django.db.models import Q
+...
+class Query(graphene.ObjectType):
+    links = graphene.List(LinkType,search=graphene.String())
+    votes=graphene.List(VoteType)
+
+    def resolve_links(self, info,search=None, **kwargs):
+        if search:
+            filter=(
+                Q(url__icontains=search)|
+                Q(description__icontains=search)
+                )
+            return Link.objects.filter(filter)
+        return Link.objects.all()
+```
+y nos devuelve la busqueda pasada como parametro:
+```
+query{
+links(
+  search:"asd"
+){
+  id
+  url
+  description
+}
+}
+```
+## Paginacion
+
+editamos el `links/schema.py`:
+
+
+
+
+
 
 
 
