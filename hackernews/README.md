@@ -649,7 +649,45 @@ links(
 ## Paginacion
 
 editamos el `links/schema.py`:
+```python
+class Query(graphene.ObjectType):
+    links = graphene.List(
+        LinkType,
+        search=graphene.String(),
+        first=graphene.Int(),
+        skip=graphene.Int(),
+        )
+    votes=graphene.List(VoteType)
 
+    def resolve_links(self, info, search=None,first=None, skip=None,**kwargs):
+        qs=Link.objects.all()
+        if search:
+            filter=(
+                Q(url__icontains=search)|
+                Q(description__icontains=search)
+                )
+            qs=qs.filter(filter)
+        if skip:
+            qs=qs[skip:]
+        if first:
+            qs=qs[:first]
+        return qs
+
+    def resolve_votes(self,info,**kwargs):
+        return Vote.objects.all()
+```
+y se puede hacer paginacion
+first es cuantos devuelve y skip es desde donde inicia
+skip=cota de inicio(/////////first=cota de grosor/////////)
+```
+query{
+links(first:2, skip:2){
+  id
+  url
+  description
+}
+}
+```
 
 
 
