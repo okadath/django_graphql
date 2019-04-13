@@ -366,15 +366,240 @@ si eliminamos ese header nos manda error:
 ```
 
 
+## links con usuarios
+editar el 'link/models.py':
+```python
+from django.db import models
+from django.conf import settings
+
+# Create your models here.
+
+class Link(models.Model):
+	url=models.URLField()
+	description=models.TextField(blank=True)
+	posted_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.CASCADE)
+```
+y migrar
+
+editar el create link en el links/schema.py:
+```python
+...
+from users.schema import UserType
+...
+class CreateLink(graphene.Mutation):
+    id = graphene.Int()
+    url = graphene.String()
+    description = graphene.String()
+    posted_by = graphene.Field(UserType)
+    ...
+    def mutate(self, info, url, description):
+        user = info.context.user or None
+        link = Link(...,posted_by=user,)
+        link.save()
+
+        return CreateLink(
+						...
+            posted_by=link.posted_by,
+        )
+
+```
+
+y estando logeado ya nos permite ser los creadores de un link:
+```
+mutation{
+  createLink(
+    url:"urltestauth"
+    description:"demo link con user"
+  ){
+    id
+    url
+    description
+    postedBy{
+      id
+      username
+      email
+    }
+  }
+}
+```
+
+la cual nos devuelve:
+```
+{
+  "data": {
+    "createLink": {
+      "id": 4,
+      "url": "urltestauth",
+      "description": "demo link con user",
+      "postedBy": {
+        "id": "1",
+        "username": "nuevo",
+        "email": "asd@asd.com"
+      }
+    }
+  }
+}
+```
+## votos
+
+agregamos al `links.models.py`:
+
+```python
+class Vote(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    link = models.ForeignKey('links.Link', related_name='votes', on_delete=models.CASCADE)
+```
+y migrar
+
+luego agregamos a `/links/schema.py`:
+
+```python
+from .models import Vote
+...
+class CreateVote(graphene.Mutation):
+    user=graphene.Field(UserType)
+    link=graphene.Field(LinkType)
+    class Arguments:
+        link_id=graphene.Int()
+    def mutate(self,info,link_id):
+        user=info.context.user
+        if user.is_anonymous:
+            raise Exception("debes estar logeado para votar")
+
+        link=Link.objects.filter(id=link_id).first()
+        if not link:
+            raise Exception("link invalido")
+    Vote.objects.create(
+        user=user,
+        link=link,
+        )
+    return CreateVote(user=user,link=link)
+#4
+class Mutation(graphene.ObjectType):
+    create_link = CreateLink.Field()
+    create_vote=CreateVote.Field()
+```
+
+y eso nos permite votar:
+```
+
+mutation{
+createVote(linkId:1){
+  user{
+    id
+    username
+    email
+  }
+  link{
+    id
+    description
+    postedBy{
+      username
+    }
+    url
+  }
+  
+}
+}
+
+{
+  "data": {
+    "createVote": {
+      "user": {
+        "id": "1",
+        "username": "nuevo",
+        "email": "asd@asd.com"
+      },
+      "link": {
+        "id": "1",
+        "description": "The Fullstack Tutorial for GraphQL",
+        "postedBy": null,
+        "url": "https://www.howtographql.com/"
+      }
+    }
+  }
+}
+```
+crear una query para listar los votos
+
+en links/schema.py:
+```python
+...
+class VoteType(DjangoObjectType):
+    class Meta:
+        model=Vote
+
+class Query(graphene.ObjectType):
+    links = graphene.List(LinkType)
+    votes=graphene.List(VoteType)
+    def resolve_votes(self,info,**kwargs):
+        return Vote.objects.all()
+
+    def resolve_links(self, info, **kwargs):
+        return Link.objects.all()
+...
+```
+
+y con eso ya tenemos querys dandonos los votos hechos
+por un usuario dado:
+```
+query{
+  votes{
+    id
+    user{
+      id
+      username
+    }
+    link{
+      id
+      url
+      description
+      postedBy{
+        id
+        username
+        
+      }
+    }
+  }
+}
 
 
-
-
-
-
-
-
-
+{
+  "data": {
+    "votes": [
+      {
+        "id": "1",
+        "user": {
+          "id": "1",
+          "username": "nuevo"
+        },
+        "link": {
+          "id": "1",
+          "url": "https://www.howtographql.com/",
+          "description": "The Fullstack Tutorial for GraphQL",
+          "postedBy": null
+        }
+      }
+    ]
+  }
+}
+```
+una query par amostrar todos los links y sus votos:
+```
+query{
+links{
+  id
+  id
+  votes{
+    id
+    user{
+      id
+      username
+    }
+  }
+}
+}
+```
 
 
 
