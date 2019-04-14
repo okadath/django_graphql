@@ -689,9 +689,160 @@ links(first:2, skip:2){
 }
 ```
 
+## Relay
 
+esto lo crearemos en un archivo separado que aun asi agega las querys al modelo :D
+en `links` creamos un `schema_relay.py`:
+```python
+import graphene
+import django_filters
+from graphene_django import DjangoObjectType
+from graphene_django.filter import DjangoFilterConnectionField
 
+from .models import Link, Vote
 
+class LinkFilter(django_filters.FilterSet):
+	class Meta:
+		model=Link
+		fields=['url','description']
 
+class LinkNode(DjangoObjectType):
+	class Meta:
+		model=Link
+		interfaces=(graphene.relay.Node,)
 
+class VoteNode(DjangoObjectType):
+	class Meta:
+		model=Vote
+		interfaces=(graphene.relay.Node,)
 
+class RelayQuery(graphene.ObjectType):
+	relay_link=graphene.relay.Node.Field(LinkNode)
+	relay_links=DjangoFilterConnectionField(LinkNode,filterset_class=LinkFilter)
+```
+
+y al schema principal en `hackernews/hackernews.py`:
+```python
+import links.schema_relay
+
+class Query(
+	users.schema.Query,
+	links.schema.Query,
+	graphene.ObjectType,
+	links.schema_relay.RelayQuery,
+	):
+    pass
+```
+eso ya nos permite hacer querys:
+```
+query{
+  relayLinks
+  {edges
+  {
+    node
+    {
+      id
+      url
+      description
+      postedBy{
+        id
+        username
+      }
+      votes{
+        edges{
+          node{
+            id
+            user{id
+            username
+            }
+            link{
+              id
+              url
+              description
+            }
+            
+          }
+        }
+      }
+    }
+  }}
+}
+```
+
+y tambien posee paginacion:
+```
+{
+  relayLinks(first: 1) {
+    edges {
+      node {
+        id
+        url
+        description
+        postedBy {
+          id
+          username
+        }
+      }
+    }
+    pageInfo {
+      startCursor
+      endCursor
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}
+```
+le agregaremos mutaciones :
+```python
+
+class RelayCreateLink(graphene.relay.ClientIDMutation):
+	link=graphene.Field(LinkNode)
+
+	class Input:
+		url=graphene.String()
+		description=graphene.String()
+	def mutate_and_get_payload(root, info,**input):
+		user=info.context.user or None
+
+		link=Link(
+			url=input.get('url'),
+			description=input.get('description'),
+			posted_by=user,
+			)
+		link.save()
+		return RelayCreateLink(link=link)
+
+class RelayMutation(graphene.AbstractType):
+	relay_create_link=RelayCreateLink.Field()
+```
+
+y modificamos la mutacion agregandola al schema principal
+```python
+class Mutation(
+	users.schema.Mutation,
+	links.schema.Mutation,
+	links.schema_relay.RelayMutation,
+	graphene.ObjectType,
+	):
+  token_auth = graphql_jwt.ObtainJSONWebToken.Field()
+  verify_token = graphql_jwt.Verify.Field()
+  refresh_token = graphql_jwt.Refresh.Field()
+```
+y esto ya nos permite hacer las mutaciones:
+```
+mutation {
+  relayCreateLink(input: 
+    {url: "url introd by relay",
+      description: "asda"}) {
+    link {
+      id
+      url
+      description
+    }
+    clientMutationId
+  }
+}
+
+```
+al parecer de todos modos se debe hacer las CRUDS individual y manualmente basandose en el ORM de django :/
